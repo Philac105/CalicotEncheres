@@ -17,6 +17,16 @@ resource "azurerm_key_vault" "kv" {
   tags = {
     environment = var.environment
   }
+
+  access_policy {
+    tenant_id = data.azurerm_client_config.current.tenant_id
+    object_id = data.azurerm_client_config.current.object_id
+
+    key_permissions = [
+      "Get",
+      "List",
+    ]
+  }
 }
 
 resource "azurerm_key_vault_access_policy" "web_app" {
