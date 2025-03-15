@@ -1,4 +1,4 @@
-resource_group_name         = "calicot-resource-group"
+resource_group_name         = "rg-calicot-web-dev-14"
 location                    = "canadacentral"
 environment                 = "dev"
 id_code                     = "14"
