@@ -28,17 +28,6 @@ jobs:
       - name: Publish the application
         run: dotnet publish ./CalicotEncheres/ --configuration Release --output ./publish
 
-      - name: Download Web App Publish Profile
-        run: |
-          PROFILE=$(az webapp deployment list-publishing-profiles --resource-group ${{ vars.RESOURCE_GROUP_NAME }} --name app-calicot-${{ vars.ENVIRONMENT }}-${{ vars.ID_CODE }} --xml)
-          echo "$PROFILE" > publish_profile.xml
-      
-      - name: Upload publish profile as artifact
-        uses: actions/upload-artifact@v2
-        with:
-          name: publish-profile
-          path: publish_profile.xml
-
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
         with:
