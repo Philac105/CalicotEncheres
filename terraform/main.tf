@@ -1,12 +1,122 @@
-resource "azurerm_resource_group" "rg" {
-  name     = var.resource_group_name
-  location = var.location
+resource "azurerm_app_service_plan" "app_service_plan" {
+  name                = "plan-calicot-dev-${var.id_code}"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  kind                = "App"
+  reserved            = false
+
+  sku {
+    tier = "Standard"
+    size = "S1"
+  }
+
+  tags = {
+    environment = var.environment
+  }
+}
+
+resource "azurerm_app_service" "app_service" {
+  name                = "app-calicot-dev-${var.id_code}"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  app_service_plan_id = azurerm_app_service_plan.app_service_plan.id
+
+  site_config {
+    always_on                 = true
+    http2_enabled             = true
+    min_tls_version           = "1.2"
+    scm_type                  = "LocalGit"
+    use_32_bit_worker_process = false
+
+    cors {
+      allowed_origins = ["*"]
+    }
+  }
+
+  app_settings = {
+    "ImageUrl" = "https://stcalicotprod000.blob.core.windows.net/images/"
+  }
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  tags = {
+    environment = var.environment
+  }
+}
+
+resource "azurerm_monitor_autoscale_setting" "autoscale" {
+  name                = "autoscale-calicot-dev-${var.id_code}"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  target_resource_id  = azurerm_app_service.app_service.id
+
+  profile {
+    name = "defaultProfile"
+    capacity {
+      default = 1
+      minimum = 1
+      maximum = 2
+    }
+
+    rule {
+      metric_trigger {
+        metric_name        = "Percentage CPU"
+        metric_resource_id = azurerm_app_service.app_service.id
+        operator           = "GreaterThan"
+        statistic          = "Average"
+        threshold          = 70
+        time_aggregation   = "Average"
+        time_grain         = "PT1M"
+        time_window        = "PT5M"
+      }
+
+      scale_action {
+        direction = "Increase"
+        type      = "ChangeCount"
+        value     = 1
+        cooldown  = "PT1M"
+      }
+    }
+
+    rule {
+      metric_trigger {
+        metric_name        = "Percentage CPU"
+        metric_resource_id = azurerm_app_service.app_service.id
+        operator           = "LessThan"
+        statistic          = "Average"
+        threshold          = 30
+        time_aggregation   = "Average"
+        time_grain         = "PT1M"
+        time_window        = "PT5M"
+      }
+
+      scale_action {
+        direction = "Decrease"
+        type      = "ChangeCount"
+        value     = 1
+        cooldown  = "PT1M"
+      }
+    }
+  }
+
+  notification {
+    email {
+      send_to_subscription_administrator = true
+      send_to_subscription_co_administrator = true
+    }
+  }
+
+  tags = {
+    environment = var.environment
+  }
 }
 
 resource "azurerm_virtual_network" "vnet" {
   name                = "vnet-${var.environment}-calicot-cc-${var.id_code}"
   location            = var.location
-  resource_group_name = azurerm_resource_group.rg.name
+  resource_group_name = var.resource_group_name
   address_space       = var.vnet_address_space
 
   tags = {
@@ -16,7 +126,7 @@ resource "azurerm_virtual_network" "vnet" {
 
 resource "azurerm_subnet" "web_subnet" {
   name                 = "snet-${var.environment}-web-cc-${var.id_code}"
-  resource_group_name  = azurerm_resource_group.rg.name
+  resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.vnet.name
   address_prefixes     = [var.web_subnet_address_prefix]
   service_endpoints    = ["Microsoft.Web"]
@@ -33,7 +143,7 @@ resource "azurerm_subnet" "web_subnet" {
 
 resource "azurerm_subnet" "db_subnet" {
   name                 = "snet-${var.environment}-db-cc-${var.id_code}"
-  resource_group_name  = azurerm_resource_group.rg.name
+  resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.vnet.name
   address_prefixes     = [var.db_subnet_address_prefix]
   service_endpoints    = ["Microsoft.Sql"]
@@ -46,7 +156,7 @@ resource "azurerm_subnet" "db_subnet" {
 resource "azurerm_network_security_group" "web_nsg" {
   name                = "nsg-${var.environment}-web-cc-${var.id_code}"
   location            = var.location
-  resource_group_name = azurerm_resource_group.rg.name
+  resource_group_name = var.resource_group_name
 
   security_rule {
     name                       = "AllowHTTP"
@@ -81,7 +191,7 @@ resource "azurerm_network_security_group" "web_nsg" {
 resource "azurerm_network_security_group" "db_nsg" {
   name                = "nsg-${var.environment}-db-cc-${var.id_code}"
   location            = var.location
-  resource_group_name = azurerm_resource_group.rg.name
+  resource_group_name = var.resource_group_name
 
   # Only allow traffic from web subnet to database
   security_rule {
