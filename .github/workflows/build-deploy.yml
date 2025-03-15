@@ -23,10 +23,10 @@ jobs:
         run: dotnet restore ./CalicotEncheres/
 
       - name: Build the application
-        run: dotnet build --configuration Release
+        run: dotnet build ./CalicotEncheres/ --configuration Release
 
       - name: Publish the application
-        run: dotnet publish --configuration Release --output ./publish
+        run: dotnet publish ./CalicotEncheres/ --configuration Release --output ./publish
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
