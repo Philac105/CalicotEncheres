@@ -1,0 +1,40 @@
+name: Build and Deploy Web Application
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v2
+        with:
+          dotnet-version: '8.0' 
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build the application
+        run: dotnet build --configuration Release
+
+      - name: Publish the application
+        run: dotnet publish --configuration Release --output ./publish
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: app-calicot-dev-14   
+          publish-profile: ${{ secrets.AZURE_WEB_APP_PUBLISH_PROFILE }}  
+          package: ./publish 
+     
+      - name: Clean up
+        run: rm -rf ./publish
+

@@ -1,0 +1,40 @@
+name: Alimenter la base de données
+
+on:
+  workflow_dispatch: 
+
+jobs:
+  db-import:
+    runs-on: ubuntu-latest 
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2  
+
+    - name: Set up Azure CLI
+      uses: azure/setup-azurecli@v1  
+      with:
+        azure-cli-version: '2.69.0'  
+
+    - name: Login to Azure using Service Principal
+      run: |
+        az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+
+    - name: Import BACPAC file to Azure SQL Database
+      run: |
+        # Variables
+        RESOURCE_GROUP_NAME="rg-calicot-web-dev-14"
+        SQL_SERVER_NAME=""
+        SQL_DATABASE_NAME=""
+        BACPAC_FILE_PATH="./db/Auctions_Data.bacpac"
+
+        az sql db import \
+          --resource-group $RESOURCE_GROUP_NAME \
+          --server $SQL_SERVER_NAME \
+          --name $SQL_DATABASE_NAME \
+          --storage-key ${{ secrets.AZURE_STORAGE_KEY }} \
+          --storage-key-type StorageAccessKey \
+          --storage-uri "https://<your-storage-account-name>.blob.core.windows.net/<your-container-name>/$BACPAC_FILE_PATH"
+
+    - name: Clean up
+      run: echo "Database import completed successfully."
