@@ -36,3 +36,13 @@ variable "db_subnet_address_prefix" {
   type        = string
   default     = "10.0.2.0/24"
 }
+
+variable "db_name" {
+  description = "Name of the database"
+  type        = string
+}
+
+variable "db_password" {
+  description = "Password for the database"
+  type        = string
+}

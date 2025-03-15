@@ -10,12 +10,29 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v1
+      with:
+        terraform_version: 1.0.0
+
     - name: Set up Azure CLI
       uses: azure/setup-azurecli@v1
 
     - name: Log in to Azure using Service Principal
       run: |
         az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+
+    - name: Deploy Infrastructure with Terraform
+      env:
+        TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+        ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      run: |
+        cd terraform
+        terraform init
+        terraform apply -auto-approve
 
     - name: Deploy Infrastructure with Terraform
       run: |

@@ -1,3 +1,81 @@
+data "azurerm_client_config" "current" {}
+
+resource "azurerm_key_vault" "kv" {
+  name                        = "kv-calicot-${var.environment}-${var.id_code}"
+  location                    = var.location
+  resource_group_name         = var.resource_group_name
+  tenant_id                   = data.azurerm_client_config.current.tenant_id
+  soft_delete_retention_days  = 7
+  purge_protection_enabled    = false
+  sku_name                    = "standard"
+  
+  network_acls {
+    default_action = "Allow"
+    bypass         = "AzureServices"
+  }
+
+  tags = {
+    environment = var.environment
+  }
+}
+
+resource "azurerm_key_vault_access_policy" "web_app" {
+  key_vault_id = azurerm_key_vault.kv.id
+  tenant_id    = data.azurerm_client_config.current.tenant_id
+  object_id    = azurerm_windows_web_app.app_service.identity[0].principal_id
+
+  secret_permissions = [
+    "Get",
+    "List"
+  ]
+}
+
+resource "azurerm_mssql_server" "sql_server" {
+  name                         = "sqlsrv-calicot-${var.environment}-${var.id_code}"
+  resource_group_name          = var.resource_group_name
+  location                     = var.location
+  version                      = "12.0"
+  administrator_login          = var.db_name
+  administrator_login_password = var.db_password
+  
+  public_network_access_enabled    = false
+  minimum_tls_version             = "1.2"
+  
+  tags = {
+    environment = var.environment
+  }
+}
+
+resource "azurerm_private_endpoint" "sql_endpoint" {
+  name                = "pe-sql-${var.environment}-${var.id_code}"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  subnet_id           = azurerm_subnet.db_subnet.id
+
+  private_service_connection {
+    name                           = "psc-sql-${var.environment}-${var.id_code}"
+    private_connection_resource_id = azurerm_mssql_server.sql_server.id
+    is_manual_connection           = false
+    subresource_names              = ["sqlServer"]
+  }
+
+  tags = {
+    environment = var.environment
+  }
+}
+
+resource "azurerm_mssql_database" "sql_db" {
+  name                = "sqldb-calicot-${var.environment}-${var.id_code}"
+  server_id           = azurerm_mssql_server.sql_server.id
+  collation           = "SQL_Latin1_General_CP1_CI_AS"
+  sku_name            = "Basic"
+  max_size_gb         = 2
+  
+  tags = {
+    environment = var.environment
+  }
+}
+
 resource "azurerm_service_plan" "app_service_plan" {
   name                = "plan-calicot-1-${var.environment}-${var.id_code}"
   location            = var.location
@@ -40,6 +118,12 @@ resource "azurerm_windows_web_app" "app_service" {
 
   tags = {
     environment = var.environment
+  }
+
+  connection_string {
+    name  = "ConnectionStrings"
+    type  = "SQLAzure"
+    value = "@Microsoft.KeyVault(SecretUri=https://${azurerm_key_vault.kv.name}.vault.azure.net/secrets/ConnectionStrings/)"
   }
 }
 
@@ -99,10 +183,10 @@ resource "azurerm_monitor_autoscale_setting" "app_autoscale" {
     }
   }
 
-  notification {
+ notification {
     email {
-      send_to_subscription_administrator    = true
-      send_to_subscription_co_administrator = true
+      send_to_subscription_administrator    = false
+      send_to_subscription_co_administrator = false
       custom_emails                         = []
     }
   }
