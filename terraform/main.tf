@@ -1,59 +1,57 @@
-resource "azurerm_app_service_plan" "app_service_plan" {
-  name                = "plan-calicot-dev-${var.id_code}"
+resource "azurerm_service_plan" "app_service_plan" {
+  name                = "plan-calicot-1-${var.environment}-${var.id_code}"
   location            = var.location
   resource_group_name = var.resource_group_name
-  kind                = "App"
-  reserved            = false
-
-  sku {
-    tier = "Standard"
-    size = "S1"
-  }
+  os_type             = "Windows"
+  sku_name            = "S1"
 
   tags = {
     environment = var.environment
   }
 }
 
-resource "azurerm_app_service" "app_service" {
-  name                = "app-calicot-dev-${var.id_code}"
+resource "azurerm_windows_web_app" "app_service" {
+  name                = "app-calicot-${var.environment}-${var.id_code}"
   location            = var.location
   resource_group_name = var.resource_group_name
-  app_service_plan_id = azurerm_app_service_plan.app_service_plan.id
+  service_plan_id     = azurerm_service_plan.app_service_plan.id
 
   site_config {
-    always_on                 = true
-    http2_enabled             = true
-    min_tls_version           = "1.2"
-    scm_type                  = "LocalGit"
-    use_32_bit_worker_process = false
-
-    cors {
-      allowed_origins = ["*"]
+    always_on        = true
+    ftps_state       = "Disabled"
+    
+    application_stack {
+      current_stack  = "dotnet"
+      dotnet_version = "v8.0"
     }
   }
-
+  
+  https_only = true
+  
   app_settings = {
     "ImageUrl" = "https://stcalicotprod000.blob.core.windows.net/images/"
   }
-
+  
   identity {
     type = "SystemAssigned"
   }
+  
+  virtual_network_subnet_id = azurerm_subnet.web_subnet.id
 
   tags = {
     environment = var.environment
   }
 }
 
-resource "azurerm_monitor_autoscale_setting" "autoscale" {
-  name                = "autoscale-calicot-dev-${var.id_code}"
-  location            = var.location
+resource "azurerm_monitor_autoscale_setting" "app_autoscale" {
+  name                = "autoscale-${var.environment}-${var.id_code}"
   resource_group_name = var.resource_group_name
-  target_resource_id  = azurerm_app_service.app_service.id
+  location            = var.location
+  target_resource_id  = azurerm_service_plan.app_service_plan.id
 
   profile {
-    name = "defaultProfile"
+    name = "CPU Based Autoscale"
+
     capacity {
       default = 1
       minimum = 1
@@ -62,49 +60,50 @@ resource "azurerm_monitor_autoscale_setting" "autoscale" {
 
     rule {
       metric_trigger {
-        metric_name        = "Percentage CPU"
-        metric_resource_id = azurerm_app_service.app_service.id
-        operator           = "GreaterThan"
-        statistic          = "Average"
-        threshold          = 70
-        time_aggregation   = "Average"
+        metric_name        = "CpuPercentage"
+        metric_resource_id = azurerm_service_plan.app_service_plan.id
         time_grain         = "PT1M"
-        time_window        = "PT5M"
+        statistic          = "Average"
+        time_window        = "PT10M"
+        time_aggregation   = "Average"
+        operator           = "GreaterThan"
+        threshold          = 70
       }
 
       scale_action {
         direction = "Increase"
         type      = "ChangeCount"
-        value     = 1
-        cooldown  = "PT1M"
+        value     = "1"
+        cooldown  = "PT10M"
       }
     }
-
+    
     rule {
       metric_trigger {
-        metric_name        = "Percentage CPU"
-        metric_resource_id = azurerm_app_service.app_service.id
-        operator           = "LessThan"
-        statistic          = "Average"
-        threshold          = 30
-        time_aggregation   = "Average"
+        metric_name        = "CpuPercentage"
+        metric_resource_id = azurerm_service_plan.app_service_plan.id
         time_grain         = "PT1M"
-        time_window        = "PT5M"
+        statistic          = "Average"
+        time_window        = "PT10M"
+        time_aggregation   = "Average"
+        operator           = "LessThan"
+        threshold          = 30
       }
 
       scale_action {
         direction = "Decrease"
         type      = "ChangeCount"
-        value     = 1
-        cooldown  = "PT1M"
+        value     = "1"
+        cooldown  = "PT10M"
       }
     }
   }
 
   notification {
     email {
-      send_to_subscription_administrator = true
+      send_to_subscription_administrator    = true
       send_to_subscription_co_administrator = true
+      custom_emails                         = []
     }
   }
 
