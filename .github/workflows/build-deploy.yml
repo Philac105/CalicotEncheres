@@ -20,7 +20,7 @@ jobs:
           dotnet-version: '8.0' 
 
       - name: Restore dependencies
-        run: dotnet restore
+        run: dotnet restore ./CalicotEncheres/
 
       - name: Build the application
         run: dotnet build --configuration Release
